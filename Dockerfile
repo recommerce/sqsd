@@ -1,6 +1,8 @@
-FROM node:17-alpine
+FROM node:18-alpine
 
 MAINTAINER Aleksandr Popov  <mogadanez@gmail.com>
+
+RUN apk upgrade
 
 # Create sqsd directory
 WORKDIR /
