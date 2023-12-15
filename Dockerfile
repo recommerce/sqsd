@@ -1,4 +1,4 @@
-FROM node:17-alpine
+FROM node:21-alpine
 
 MAINTAINER Aleksandr Popov  <mogadanez@gmail.com>
 
