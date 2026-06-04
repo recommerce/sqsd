@@ -1,8 +1,10 @@
 {
   "name": "sqsd",
   "description": "A simple alternative to the Amazon SQS Daemon (sqsd) used on AWS Beanstalk worker tier instances.",
-  "version": "2.0.2",
-  "engine": "node ~4.0.0",
+  "version": "3.0.0",
+  "engines": {
+    "node": ">=26.0.0"
+  },
   "author": {
     "name": "Proofme Inc.",
     "url": "http://proofme.com/"
@@ -15,7 +17,9 @@
     }
   ],
   "scripts": {
-    "start": "node run-cli.js"
+    "start": "node run-cli.js",
+    "check": "node --check cli.js && node --check run-cli.js && node --check lib/index.js",
+    "test": "node --test"
   },
   "repository": {
     "type": "git",
@@ -35,12 +39,10 @@
     "post"
   ],
   "dependencies": {
-    "aws-sdk": "^2.6.12",
-    "axios": "^0.21.2",
-    "commander": "^5.1.0",
-    "debug": "^4.1.1",
-    "dotenv": "^8.2.0",
-    "forever-monitor": "^3.0.0",
-    "lodash": "^4.17.15"
+    "@aws-sdk/client-sqs": "^3.1060.0",
+    "axios": "^1.17.0",
+    "commander": "^15.0.0",
+    "debug": "^4.4.3",
+    "dotenv": "^17.4.2"
   }
 }

@@ -1,17 +1,15 @@
-FROM node:21-alpine
+FROM node:26-alpine
 
-MAINTAINER Aleksandr Popov  <mogadanez@gmail.com>
+LABEL maintainer="Aleksandr Popov <mogadanez@gmail.com>"
 
-# Create sqsd directory
-WORKDIR /
-RUN mkdir /sqsd
 WORKDIR /sqsd
 
-# Copy sqsd source including
-COPY ./ /sqsd
+# Install dependencies (reproducible install from package-lock.json)
+COPY package*.json ./
+RUN npm ci --omit=dev
 
-# Install dependencies
-RUN npm install
+# Copy sqsd source
+COPY ./ /sqsd
 
 # Run sqsd
 CMD ["node", "run-cli.js"]

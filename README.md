@@ -24,8 +24,8 @@ But even more important! **We have "dockerized" it** so that you can use it as a
 Following are detailed instructions of configuration and usage with and without Docker. Any changes, suggestions or Forks are welcome!
 
 ## Technologies / Environments Used
-- Node.js 4+
-- AWS Node SDK 2.2.26+
+- Node.js 26.x
+- AWS SDK for JavaScript v3 (`@aws-sdk/client-sqs`)
 
 ## Usage
 
@@ -33,6 +33,13 @@ Following are detailed instructions of configuration and usage with and without 
 
 #### Local development
 To execute the program, clone down the repository, navigate to it with a terminal and run `npm start`
+
+To run the local verification suite:
+
+```bash
+npm run check
+npm test
+```
 
 #### As global command-line tool
 
@@ -86,11 +93,12 @@ Run the program with the `--help` flag to see the full list of accepted argument
 | -q, --queue-url  | `SQSD_QUEUE_URL`                                 | -                  | no          | Your queue URL.                                                                                                      |
 | --queue-name  | `SQSD_QUEUE_NAME`                                 | -                  | no          | The name of the queue. Fetch from queue URL if blank                                                                                                      |
 | --endpoint-url  | `SQSD_ENDPOINT_URL`                                 | -                  | no          | Your endpoint URL if you using a fake sqs.                                                                                                      |
-| --ssl-enabled  | `SQSD_SSL_ENABLED`                                 | `true`                  | no          | To enable ssl or not.                                                                                                      |
+| --ssl-enabled  | `SQSD_SSL_ENABLED`                                 | `true`                  | no          | Deprecated (no-op since AWS SDK v3). SSL is now determined by the scheme (`http`/`https`) of `--endpoint-url`.             |
 |  -m, --max-messages | `SQSD_MAX_MESSAGES_PER_REQUEST`                  | `10` (max: `10`)   | no           | Max number of messages to retrieve per request.                                                                      |
 |  -d, --daemonized | `SQSD_RUN_DAEMONIZED`                            | `0`                | no           | Whether to continue running with empty queue (0,no,false is no, 1,yes,true is yes)                                   |
 |  -s, --sleep | `SQSD_SLEEP_SECONDS`                             | `0`                | no           | Number of seconds to wait after polling empty queue when daemonized                                                  |
 |  --wait-time | `SQSD_WAIT_TIME_SECONDS`                         | `20` (max: `20`)   | no           | Long polling wait time when querying the queue.                                                                      |
+| --shutdown-timeout | `SQSD_SHUTDOWN_TIMEOUT`                    | `SQSD_WORKER_TIMEOUT + SQSD_WAIT_TIME_SECONDS * 1000 + 5000` | no | Max time to wait for in-flight messages during shutdown, ms. Use `0` to disable forced shutdown. |
 | -w, --web-hook | `SQSD_WORKER_HTTP_URL`                           | -                  | yes          | Web url address to your service.                                                                                     |
 | --content-type | `SQSD_WORKER_HTTP_REQUEST_CONTENT_TYPE`          | `application/json` | no           | Message MIME Type.                                                                                                   |
 | --concurrency  | `SQSD_WORKER_CONCURRENCY`                        | 3                  | no           | Number of concurrent http request to worker service                                                                  |
@@ -104,7 +112,7 @@ Use this run configuration when your worker is running in another container or i
 
     cd /your/sqsd/local/path
     docker build -t someImageName .
-    docker run -e -e SQSD_WORKER_HTTP_URL=http://someRemoteHost/someRemotePath someImageName
+    docker run -e SQSD_WORKER_HTTP_URL=http://someRemoteHost/someRemotePath someImageName
 
 **Remember that if you are running your worker on your Docker host's instance, you cannot use `localhost` as the worker host path since the `localhost` in this case will be the container's address, not your host's. Use linked containers instead**
 
