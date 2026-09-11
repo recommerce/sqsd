@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "start": "node run-cli.js",
-    "check": "node --check cli.js && node --check run-cli.js && node --check lib/index.js",
+    "check": "node --check cli.js && node --check run-cli.js && node --check lib/index.js && node --check lib/options.js",
     "test": "node --test"
   },
   "repository": {
