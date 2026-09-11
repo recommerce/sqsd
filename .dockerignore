@@ -1,0 +1,14 @@
+node_modules/
+.git/
+.github/
+.agents/
+.codex/
+.env
+.dockerignore
+.gitignore
+Dockerfile
+README.md
+test/
+npm-debug.log*
+*.log
+*.log.txt
