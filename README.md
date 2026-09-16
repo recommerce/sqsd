@@ -24,8 +24,10 @@ But even more important! **We have "dockerized" it** so that you can use it as a
 Following are detailed instructions of configuration and usage with and without Docker. Any changes, suggestions or Forks are welcome!
 
 ## Technologies / Environments Used
-- Node.js 4+
-- AWS Node SDK 2.2.26+
+- Node.js 26.x
+- AWS SDK for JavaScript v3 (`@aws-sdk/client-sqs`)
+
+Coming from v2? See _Migrating from v2_ at the bottom of this page.
 
 ## Usage
 
@@ -33,6 +35,13 @@ Following are detailed instructions of configuration and usage with and without 
 
 #### Local development
 To execute the program, clone down the repository, navigate to it with a terminal and run `npm start`
+
+To run the local verification suite:
+
+```bash
+npm run check
+npm test
+```
 
 #### As global command-line tool
 
@@ -86,17 +95,18 @@ Run the program with the `--help` flag to see the full list of accepted argument
 | -q, --queue-url  | `SQSD_QUEUE_URL`                                 | -                  | no          | Your queue URL.                                                                                                      |
 | --queue-name  | `SQSD_QUEUE_NAME`                                 | -                  | no          | The name of the queue. Fetch from queue URL if blank                                                                                                      |
 | --endpoint-url  | `SQSD_ENDPOINT_URL`                                 | -                  | no          | Your endpoint URL if you using a fake sqs.                                                                                                      |
-| --ssl-enabled  | `SQSD_SSL_ENABLED`                                 | `true`                  | no          | To enable ssl or not.                                                                                                      |
+| --ssl-enabled  | `SQSD_SSL_ENABLED`                                 | `true`                  | no          | Deprecated (no-op since AWS SDK v3). SSL is now determined by the scheme (`http`/`https`) of `--endpoint-url`.             |
 |  -m, --max-messages | `SQSD_MAX_MESSAGES_PER_REQUEST`                  | `10` (max: `10`)   | no           | Max number of messages to retrieve per request.                                                                      |
 |  -d, --daemonized | `SQSD_RUN_DAEMONIZED`                            | `0`                | no           | Whether to continue running with empty queue (0,no,false is no, 1,yes,true is yes)                                   |
-|  -s, --sleep | `SQSD_SLEEP_SECONDS`                             | `0`                | no           | Number of seconds to wait after polling empty queue when daemonized                                                  |
+|  -s, --sleep | `SQSD_SLEEP_SECONDS`                             | `0`                | no           | Number of **seconds** to wait after polling an empty queue when daemonized                                           |
 |  --wait-time | `SQSD_WAIT_TIME_SECONDS`                         | `20` (max: `20`)   | no           | Long polling wait time when querying the queue.                                                                      |
+| --shutdown-timeout | `SQSD_SHUTDOWN_TIMEOUT`                    | `SQSD_WORKER_TIMEOUT + SQSD_WAIT_TIME_SECONDS * 1000 + 5000` | no | Max time to wait for in-flight messages during shutdown, ms. Use `0` to disable forced shutdown. |
 | -w, --web-hook | `SQSD_WORKER_HTTP_URL`                           | -                  | yes          | Web url address to your service.                                                                                     |
 | --content-type | `SQSD_WORKER_HTTP_REQUEST_CONTENT_TYPE`          | `application/json` | no           | Message MIME Type.                                                                                                   |
-| --concurrency  | `SQSD_WORKER_CONCURRENCY`                        | 3                  | no           | Number of concurrent http request to worker service                                                                  |
+| --concurrency  | `SQSD_WORKER_CONCURRENCY`                        | 3                  | no           | Max number of concurrent http requests to the worker service. Also caps how many messages are read from a single poll. |
 |  -t, --timeout | `SQSD_WORKER_TIMEOUT`                            | 60000              | no           | Timeout for waiting response from worker, ms                                                                         |
 |  --worker-health-url | `SQSD_WORKER_HEALTH_URL`                         | -                  | no           | Url for checking that worker is running, useful when running in linked containers and worker needs some time to  up. |
-|  --worker-health-wait-time | `SQSD_WORKER_HEALTH_WAIT_TIME`                   | 10000              | no           | Timeout for waiting while worker become  health, ms                                                                  |
+|  --worker-health-wait-time | `SQSD_WORKER_HEALTH_WAIT_TIME`                   | 10000              | no           | Total time to wait for the worker to become healthy, ms. This is the whole budget, not a per request timeout: a worker that answers slowly is still healthy. |
 
 
 #### Using Docker (with service/worker hosted outside this container)
@@ -104,7 +114,7 @@ Use this run configuration when your worker is running in another container or i
 
     cd /your/sqsd/local/path
     docker build -t someImageName .
-    docker run -e -e SQSD_WORKER_HTTP_URL=http://someRemoteHost/someRemotePath someImageName
+    docker run -e SQSD_WORKER_HTTP_URL=http://someRemoteHost/someRemotePath someImageName
 
 **Remember that if you are running your worker on your Docker host's instance, you cannot use `localhost` as the worker host path since the `localhost` in this case will be the container's address, not your host's. Use linked containers instead**
 
@@ -119,8 +129,48 @@ Here is a sample .env file below.
 SQSD_QUEUE_NAME=queue_name
 SQSD_WORKER_HTTP_URL=http://127.0.0.1
 SQSD_ENDPOINT_URL=http://127.0.0.1:4568
-SQSD_SSL_ENABLED=false
 AWS_ACCESS_KEY_ID=meh
 AWS_SECRET_ACCESS_KEY=meh
 
 The access key and the secret key must not be blank.
+
+`SQSD_SSL_ENABLED` is no longer read: always give `SQSD_ENDPOINT_URL` an explicit
+`http://` or `https://` scheme, the AWS SDK v3 derives the protocol from it.
+
+Message system attributes are now requested through the SDK v3
+`MessageSystemAttributeNames` parameter. A fake SQS implementation that does not
+support it answers without attributes, and the `X-Aws-Sqsd-Receive-Count`,
+`X-Aws-Sqsd-First-Received-At` and `X-Aws-Sqsd-Sender-Id` headers are then
+missing from the worker request. Amazon SQS is unaffected.
+
+## Process supervision
+
+`run-cli.js` (the `sqsd` binary, and the Docker entrypoint) supervises `cli.js`:
+it restarts the daemon when it crashes, up to 1000 times. Consecutive crashes
+happening in less than 22 seconds are treated as a startup failure and backed off
+from 1s to 30s, then abandoned after 5 attempts, so that a broken configuration
+fails loudly instead of looping. On `SIGTERM` and `SIGINT` the child is asked to
+shut down gracefully and is only killed after `--shutdown-timeout`.
+
+## Migrating from v2
+
+`sqsd` v3 is a breaking release.
+
+- **Node.js 26 or later is required.** The image is built from `node:26-alpine`
+  and runs as the unprivileged `node` user.
+- **The AWS SDK for JavaScript v3 replaces v2.** Credentials still come from the
+  usual environment variables, and are otherwise resolved through the default
+  credential provider chain (IAM roles, instance metadata, ...).
+- **`--ssl-enabled` / `SQSD_SSL_ENABLED` is a no-op.** The protocol comes from
+  the scheme of `--endpoint-url`.
+- **`--sleep` / `SQSD_SLEEP_SECONDS` is really expressed in seconds.** v2 passed
+  the value straight to a throttle in milliseconds, so `SQSD_SLEEP_SECONDS=30`
+  used to pause for 30ms and now pauses for 30s.
+- **`--concurrency` / `SQSD_WORKER_CONCURRENCY` is now enforced.** v2 declared
+  the option but never read it, so the real limit was `--max-messages`, up to 10
+  in-flight messages. The default is 3: raise it to keep the previous
+  throughput.
+- **A worker that never becomes healthy is fatal.** v2 logged and exited 0 when
+  `--worker-health-url` kept failing; the daemon now exits non-zero.
+- **The supervisor no longer depends on `forever-monitor`,** see _Process
+  supervision_ above.
